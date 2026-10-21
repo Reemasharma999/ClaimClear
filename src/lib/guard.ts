@@ -29,7 +29,7 @@ export const newRequestId = () => crypto.randomUUID().slice(0, 8);
 
 /**
  * One JSON line per request: what happened and how long it took, never what the user wrote.
- * Vercel's log view can filter on these fields (e.g. event=request status=error).
+ * Render's Logs tab can search these fields (e.g. "status":"error" or a ref id).
  */
 export function logEvent(fields: Record<string, unknown>) {
   console.log(JSON.stringify({ t: new Date().toISOString(), ...fields }));

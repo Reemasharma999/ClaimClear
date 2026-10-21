@@ -1,6 +1,6 @@
 # ClaimClear: will your health insurance actually pay?
 
-**Live demo:** _add your Vercel URL_ · **How it works + eval results:** `/how-it-works` · **Learn the concepts:** [LEARN.md](LEARN.md) · **Deploy it:** [DEPLOY.md](DEPLOY.md)
+**Live demo:** _add your Render URL_ · **How it works + eval results:** `/how-it-works` · **Learn the concepts:** [LEARN.md](LEARN.md) · **Deploy it:** [DEPLOY.md](DEPLOY.md)
 
 In FY25, Indian insurers repudiated **8% of 3.26 crore health claims** and disallowed **₹26,000+ crore**, mostly over waiting periods, sub-limits, room-rent caps and co-pays buried in policy wording. Policyholders' biggest complaint: not knowing *why*.
 
@@ -43,6 +43,6 @@ npm install
 npm run dev
 ```
 
-Stack: Next.js 15, Vercel AI SDK 7, Gemini 3.5 Flash + gemini-embedding-001 (free tier), optional Groq fallback, Tailwind 4. No database.
+Hosting: Render (free web service, auto-deploys from `main` via [render.yaml](render.yaml)). Stack: Next.js 15, Vercel AI SDK 7, Gemini 3.5 Flash + gemini-embedding-001 (free tier), optional Groq fallback, Tailwind 4. No database.
 
 _Not legal or insurance advice. The sample policy is fictional._

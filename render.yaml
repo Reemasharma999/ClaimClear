@@ -1,0 +1,23 @@
+# Render Blueprint: infrastructure as code. Render reads this file when you create the
+# service from the repo (New → Blueprint), so the setup is versioned with the code.
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: claimclear
+    runtime: node
+    plan: free
+    branch: main
+    autoDeployTrigger: commit # every push to main redeploys to the same URL
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health # a deploy only goes live once this returns 200
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: GOOGLE_GENERATIVE_AI_API_KEY
+        sync: false # entered once in the Render dashboard; never stored in the repo
+      - key: GROQ_API_KEY
+        sync: false
+      - key: RATE_LIMIT_PER_HOUR
+        value: "30"

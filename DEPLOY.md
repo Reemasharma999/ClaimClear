@@ -1,153 +1,101 @@
-# Deploying ClaimClear: setup to live URL
+# Deploying ClaimClear on Render
 
-Total time: about 30 minutes. Cost: ₹0 (GitHub free, Vercel Hobby free, Gemini free tier).
+Cost: ₹0 (GitHub free, Render free web service, Gemini free tier). Every `git push` to `main` redeploys automatically to the **same URL**.
 
 ```
-Your laptop ──git push──▶ GitHub repo ──auto-deploy──▶ Vercel (hosts Next.js) ──API calls──▶ Google Gemini
-   .env.local (secret)                                  Environment Variables (secret)
+Your laptop ──git push──▶ GitHub (main) ──auto-deploy──▶ Render: npm ci && npm run build → npm start
+   .env (secret, git-ignored)                            Environment variables (secret, set in dashboard)
 ```
 
-Secrets **never** go to GitHub. Locally they live in `.env.local` (git-ignored). In production they live in Vercel's Environment Variables.
+Secrets **never** go to GitHub. Locally they live in `.env` (git-ignored); on Render they live in the service's Environment settings. The deploy settings themselves are versioned in [render.yaml](render.yaml).
+
+## Why Render (and not Vercel / Netlify / Cloudflare)
+
+| | Render | Netlify (free) | Cloudflare Workers (free) |
+|---|---|---|---|
+| Auto-deploy every push, same URL | ✅ | ✅, but each production deploy costs 15 of 300 monthly credits (~20 deploys), then sites pause | ✅ |
+| Runs this app unmodified | ✅ normal Node server, no function timeout | needs adapter; short free function timeout | needs OpenNext adapter; 10 ms CPU per request |
+| Catch | sleeps after 15 min idle → ~1 min cold start (fixed in step 4) | | |
 
 ---
 
-## Step 0: Prerequisites (one-time)
+## Step 1: Prerequisites (one-time)
 
-| Need | How to check / get it |
-|---|---|
-| Node.js 20+ | `node -v` |
-| Git | `git --version` |
-| GitHub account | https://github.com/signup |
-| Vercel account | https://vercel.com/signup → **Continue with GitHub** (this links the two) |
-| Gemini API key (free) | https://aistudio.google.com/apikey → *Create API key* |
-| Groq API key (optional fallback) | https://console.groq.com/keys |
+- Code on GitHub: https://github.com/Reemasharma999/ClaimClear (done)
+- Render account: https://dashboard.render.com/register → **Sign up with GitHub**
+- Gemini key: https://aistudio.google.com/apikey · Groq key (strongly recommended fallback): https://console.groq.com/keys
 
-Make sure the `claimclear` folder sits somewhere permanent (e.g. `Documents\projects\claimclear`), not in a temporary folder.
+## Step 2: Create the service from the Blueprint
+
+1. Render dashboard → **New → Blueprint**
+2. Connect GitHub → grant access to the **ClaimClear** repo
+3. Render finds `render.yaml` and shows one service: `claimclear` (free, Node)
+4. It asks for the secret values marked `sync: false`:
+   - `GOOGLE_GENERATIVE_AI_API_KEY` → your Gemini key
+   - `GROQ_API_KEY` → your Groq key
+5. Click **Apply / Deploy Blueprint**. The first build takes ~3–5 minutes; watch it under **Logs**.
+6. When it says **Live**, your URL is shown at the top: `https://claimclear.onrender.com` (or `claimclear-xxxx.onrender.com` if the name is taken). **This URL never changes between deploys.**
+
+> No Blueprint? **New → Web Service** → pick the repo → Runtime **Node**, Build `npm ci && npm run build`, Start `npm start`, Instance **Free**, Health Check Path `/api/health`, then add the env vars from step 2.4 and `NODE_VERSION=22`.
+
+## Step 3: Verify production
+
+- `https://<your-url>/api/health` → `{"ok":true, "aiConfigured":true, "fallbackConfigured":true}`
+- Home page → **Try a sample policy** → run each example → open a clause tag
+- Type junk (e.g. `asdf qwer`) → you should get the "tell us more" card, not an error
+- `/how-it-works` loads
+- Open it on your phone
+
+## Step 4: Keep it awake (no 1-minute cold starts for recruiters)
+
+Free Render services sleep after 15 minutes without traffic. A free monitor that pings the health check every 10 minutes keeps it awake; one always-on service uses ~744 of Render's 750 free hours/month.
+
+1. https://uptimerobot.com → sign up (free) → **Add New Monitor**
+2. Type **HTTP(s)**, URL `https://<your-url>/api/health`, interval **10 minutes** (free tier minimum is 5)
+3. Save. You also get an email if the app ever goes down: free production monitoring.
+
+The health check makes no AI calls, so pinging it costs no quota.
+
+## Step 5: Every update from now on
+
+```bash
+git add -A
+git commit -m "describe the change"
+git push
+```
+
+Render starts a new deploy within seconds of the push (**Events** tab). The old version keeps serving until the new build passes the `/api/health` check, then the same URL switches over: zero downtime, and a broken build never goes live.
+
+## Step 6: Finish the portfolio loop
+
+1. Put the live URL at the top of `README.md` and push.
+2. Add ClaimClear to your portfolio's "AI Products" section: live link, GitHub link, one-line problem, eval numbers.
+3. Pin the repo on your GitHub profile.
 
 ---
 
-## Step 1: Run it locally
-
-Open a terminal in the `claimclear` folder.
+## Run locally
 
 ```bash
 npm install
 ```
 
-Create your secrets file. In PowerShell:
-
-```powershell
-Copy-Item .env.example .env.local
-```
-
-Open `.env.local` and paste your key after `GOOGLE_GENERATIVE_AI_API_KEY=` (no quotes, no spaces). Then:
+Copy `.env.example` to `.env`, paste your keys, then:
 
 ```bash
 npm run dev
 ```
 
-Open http://localhost:3000 and test:
-1. **Try a sample policy** → the policy card turns green ("46 clauses indexed").
-2. Click each of the 3 examples → **Check my claim** → you see a verdict, a receipt, and clause tags.
-3. Click a clause tag → the side sheet opens with the sentence highlighted.
-4. Expand **Show the AI's work**.
-5. Upload any real policy wording PDF (insurers publish them on their websites).
-
-> Design QA tip: http://localhost:3000/?fixture loads a hand-computed sample result without calling the AI. It only works in development.
-
-## Step 2: Run the evals (gets you real numbers for your resume)
-
-```bash
-npm run eval
-```
-
-This takes ~4 minutes (it pauses between calls to respect free-tier limits). It writes `evals/results.json` and `evals/REPORT.md`, and the numbers appear on `/how-it-works`. If you hit a rate limit, wait a minute and re-run, or add `GROQ_API_KEY` for the automatic fallback.
-
-## Step 3: Check the production build locally
-
-Stop the dev server first (Ctrl+C), because `build` and `dev` share the `.next` folder.
-
-```bash
-npm run build
-```
-
-It must end with `✓ Compiled successfully`. Fix any error before deploying, because Vercel runs the same command.
-
-## Step 4: Push to GitHub
-
-1. Go to https://github.com/new
-   - Repository name: `claimclear`
-   - **Public** (recruiters must be able to read it)
-   - Do **not** add a README, .gitignore or license (the project already has them)
-   - Click **Create repository**
-2. In the `claimclear` folder:
-
-```bash
-git init
-git add .
-git commit -m "ClaimClear: grounded RAG for Indian health insurance claims"
-git branch -M main
-git remote add origin https://github.com/<your-username>/claimclear.git
-git push -u origin main
-```
-
-3. **Safety check:** on GitHub, confirm `.env.local` is **not** in the file list (only `.env.example`). If you ever push a key by mistake, delete it in AI Studio immediately and create a new one. Deleting the file from git is not enough.
-
-## Step 5: Deploy on Vercel
-
-1. Go to https://vercel.com/new
-2. **Import Git Repository** → pick `claimclear` (click *Adjust GitHub App Permissions* if it isn't listed)
-3. Vercel auto-detects **Next.js**. Leave Build Command, Output Directory and Install Command as defaults.
-4. Open **Environment Variables** and add:
-
-| Name | Value | Required |
-|---|---|---|
-| `GOOGLE_GENERATIVE_AI_API_KEY` | your Gemini key | ✅ |
-| `GROQ_API_KEY` | your Groq key | optional |
-| `RATE_LIMIT_PER_HOUR` | `30` | optional |
-
-5. Click **Deploy**. It takes ~2 minutes, and you get a URL like `claimclear-abc123.vercel.app`.
-6. Make the URL nicer: **Project → Settings → Domains → Edit** the `.vercel.app` domain to `claimclear-reema.vercel.app` (or any free name).
-
-## Step 6: Verify production
-
-Repeat the Step 1 checks on the live URL, plus:
-- `/how-it-works` shows your eval numbers.
-- **Vercel → Project → Logs**: no red errors while you use the app.
-- Open the site on your phone (most recruiters will click from LinkedIn on mobile).
-
-## Step 7: From now on
-
-- Every `git push` to `main` redeploys automatically.
-- Every pull request gets its own preview URL, so you can share work-in-progress safely.
-- Changed an environment variable? **Deployments → ⋯ → Redeploy**, because env changes apply only to new deployments.
-
-## Step 8: Finish the portfolio loop
-
-1. Put the live URL at the top of `README.md` (replace `_add your Vercel URL_`) and push.
-2. Add ClaimClear to your portfolio's "AI Products" section: live link, GitHub link, one-line problem statement, and the eval numbers.
-3. Pin the repo on your GitHub profile.
-
----
-
-## Alternative: deploy from the terminal (Vercel CLI)
-
-```bash
-npm i -g vercel
-vercel login
-vercel link
-vercel env add GOOGLE_GENERATIVE_AI_API_KEY
-vercel --prod
-```
+Quality checks before pushing: `npm test` (guardrail unit tests, no API calls), `npm run redteam` and `npm run eval` (real model; uses free quota).
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| "Google Generative AI API key is missing" | Env var not set, or set after deploy | Add it in Vercel → Settings → Environment Variables, then Redeploy |
-| "The free AI quota is busy" | Gemini free-tier rate limit | Wait 60s; add `GROQ_API_KEY` for the automatic fallback |
-| "Demo limit reached for this hour" | Our per-IP limiter (30/hr) | Raise `RATE_LIMIT_PER_HOUR` |
-| "This PDF has no selectable text" | Scanned PDF | Download the text PDF of the policy wording from the insurer's site |
-| Page unstyled locally after `npm run build` | Build overwrote the dev server's `.next` | Stop dev, delete `.next`, then run `npm run dev` again |
-| Function timeout on Vercel | A slow model call | `maxDuration` is 60s per route; check Logs, and retry |
-| Build fails on Vercel but works locally | Missing dependency or a case-sensitive import path | Run `npm run build` locally with a clean `npm ci` |
+| Push didn't redeploy | Pushed to a branch other than `main`, or auto-deploy off | Render → Settings → Build & Deploy → Auto-Deploy **On Commit**, branch `main` |
+| Deploy stuck at "health check failed" | App crashed on start | Logs tab; run `npm run build && npm start` locally to reproduce |
+| `aiConfigured: false` in /api/health | Env var missing | Render → Environment → add key → **Save, rebuild and deploy** |
+| "The free AI quota is busy" | Gemini free-tier quota hit | Add `GROQ_API_KEY` (automatic fallback) or wait |
+| First visit takes ~1 minute | Instance was asleep | Set up the uptime monitor (step 4) |
+| Build fails with out-of-memory | Free build resources | Retry the deploy; if persistent, set env `NODE_OPTIONS=--max-old-space-size=460` |
+| Page unstyled locally after `npm run build` | Build overwrote the dev server's `.next` | Stop dev, delete `.next`, `npm run dev` again |
