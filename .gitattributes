@@ -1,0 +1,4 @@
+# Keep LF line endings in the repo so Linux builds (Vercel) and Windows checkouts agree.
+* text=auto eol=lf
+*.ico binary
+*.png binary
